@@ -1,0 +1,8 @@
+mirror_path: "/srv/replicate-github"
+
+# You can generate a GitHub API token at https://github.com/settings/tokens
+github_user: "a github username"
+github_token: "a github api token"
+
+# If you use webhooks, specify the shared secret to authenticate requests
+webhook_secret: null
