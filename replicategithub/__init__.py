@@ -5,6 +5,7 @@ import logging
 import multiprocessing
 import os
 import re
+import shutil
 import time
 
 from replicategithub import webhook
@@ -84,7 +85,16 @@ class Mirror:
         git.Repo.init(path, bare=True).git.fetch("origin")
 
     def delete_repo(self, full_name):
-        raise MirrorException("Not implemented: delete_repo {}".format(full_name))
+        self.logger.info("Deleting {}".format(full_name))
+
+        path = self.get_repo_path(full_name)
+        if not os.path.exists(path):
+            return
+
+        target = "{}/.{}.delete.{}".format(
+            os.path.dirname(path), os.path.basename(path), os.getpid())
+        os.rename(path, target)
+        shutil.rmtree(target)
 
     def get_repo_times(self, before=None):
         if before is None:
