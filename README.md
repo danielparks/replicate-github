@@ -29,6 +29,9 @@ github_user: "GitHub username"
 github_token: "GitHub API token"
 ~~~
 
+There is an additional top level option, `workers`, that sets the number of
+`git` subprocesses that can be run at once. It defaults to 1.
+
 Optionally, defaults for subcommands (e.g. `serve`) may be set:
 
 ~~~ yaml

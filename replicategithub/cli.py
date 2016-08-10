@@ -8,9 +8,6 @@ import yaml
 
 import replicategithub
 
-config = None
-mirror = None
-
 def set_up_logging(level=logging.WARNING):
     logging.captureWarnings(True)
 
@@ -26,22 +23,25 @@ def set_up_logging(level=logging.WARNING):
     root.setLevel(level)
     root.addHandler(handler)
 
-def get_mirror(config):
-    return replicategithub.Mirror(
+def get_async_mirror(config):
+    mirror = replicategithub.Mirror(
         config["mirror_path"], config["github_user"], config["github_token"])
+    return replicategithub.AsyncMirror(mirror, worker_count=config["workers"])
 
 class Config(dict):
     pass
 pass_config = click.make_pass_decorator(Config, ensure=True)
 
 @click.group()
+@click.option('--workers', '-j', type=int, default=None, metavar="COUNT",
+    help="Number of git subprocesses to use (default: 1).")
 @click.option('--verbose', '-v', default=False, is_flag=True)
 @click.option('--debug', '-d', default=False, is_flag=True)
 @click.option('--config-file', '-c', type=click.File('rt'),
     default="/etc/replicate-github.yaml")
 @click.version_option()
 @click.pass_context
-def main(context, verbose, debug, config_file):
+def main(context, workers, verbose, debug, config_file):
     """
     Mirror GitHub repositories
 
@@ -54,6 +54,11 @@ def main(context, verbose, debug, config_file):
     config = context.ensure_object(Config)
     config.update(yaml.safe_load(config_file.read()))
     config_file.close()
+
+    if workers is not None:
+        config['workers'] = workers
+    if 'workers' not in config:
+        config['workers'] = 1
 
     context.default_map = config
 
@@ -76,7 +81,7 @@ def fetch(config, repos):
     """ Fetch repos into the mirror """
 
     logger = logging.getLogger("fetch")
-    mirror = get_mirror(config)
+    mirror = get_async_mirror(config)
 
     for repo_name in repos:
         parts = repo_name.split("/")
@@ -93,40 +98,34 @@ def fetch(config, repos):
             mirror.fetch_repo(repo_name)
 
 @main.command()
-@click.option('--workers', '-j', type=int, default=2, metavar="COUNT",
-    help="Number of git subprocesses to use (default: 2).")
 @click.option('--older-than', type=int, default=24*60*60, metavar="SECONDS",
     help="Cut off age in seconds (default: 86400).")
 @pass_config
-def freshen(config, workers, older_than):
+def freshen(config, older_than):
     """ Update oldest repos in mirror """
 
     logger = logging.getLogger("freshen")
-    logger.info("Freshening repos with {} workers".format(workers))
-    mirror = get_mirror(config)
+    logger.info("Freshening repos")
 
-    manager = replicategithub.AsyncMirror(mirror, worker_count=workers)
-    manager.fetch_old_repos(older_than)
-    manager.stop()
+    mirror = get_async_mirror(config)
+    mirror.fetch_old_repos(older_than)
+    mirror.stop()
 
 @main.command()
 @click.option('--listen', '-l', default="localhost", metavar="ADDRESS",
     help="Address to listen on (default: localhost).")
 @click.option('--port', '-p', type=int, default=8080, metavar="PORT",
     help="Port to listen on (default: 8080).")
-@click.option('--workers', '-j', type=int, default=2, metavar="COUNT",
-    help="Number of git subprocesses to use (default: 2).")
 @click.option('--secret', metavar="STRING",
     help="Secret to authenticate Github")
 @pass_config
-def serve(config, listen, port, workers, secret):
+def serve(config, listen, port, secret):
     """ Serve webhook endpoint for GitHub """
 
     logger = logging.getLogger("serve")
     logger.info("Serving HTTP on {}:{}".format(listen, port))
-    mirror = get_mirror(config)
 
     replicategithub.webhook.serve(
-        replicategithub.AsyncMirror(mirror, worker_count=workers),
+        get_async_mirror(config),
         secret,
         (listen, port))
