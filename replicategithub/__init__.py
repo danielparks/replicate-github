@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import git
 import github
 from glob import iglob
@@ -54,6 +55,14 @@ class Mirror:
         if not os.path.isdir(path):
             raise MirrorException("Mirror directory {} not found".format(path))
 
+    @contextmanager
+    def timed_action(self, message):
+        self.logger.info(message)
+        start = time.time()
+        yield
+        self.logger.debug("{} finished in {:.3f} seconds"
+            .format(message, time.time() - start))
+
     def get_repo_path(self, full_name):
         return "{}/{}.git".format(self.path, full_name)
 
@@ -66,35 +75,33 @@ class Mirror:
         if os.path.exists(path):
             raise MirrorException("Cannot init repo; path exists: {}".format(path))
 
-        self.logger.info("Initializing {}".format(full_name))
+        with self.timed_action("Initializing {}".format(full_name)):
+            organization_path = os.path.dirname(path)
+            if not os.path.exists(organization_path):
+                os.mkdir(organization_path, 0o755)
 
-        organization_path = os.path.dirname(path)
-        if not os.path.exists(organization_path):
-            os.mkdir(organization_path, 0o755)
-
-        git.Repo.init(path, bare=True).git.remote(
-            "add", "--mirror", "origin", self.get_clone_url(full_name))
+            git.Repo.init(path, bare=True).git.remote(
+                "add", "--mirror", "origin", self.get_clone_url(full_name))
 
     def fetch_repo(self, full_name):
         path = self.get_repo_path(full_name)
         if not os.path.exists(path):
             self.initialize_repo(full_name)
 
-        self.logger.info("Fetching {}".format(full_name))
-
-        git.Repo.init(path, bare=True).git.fetch("origin")
+        with self.timed_action("Fetching {}".format(full_name)):
+            git.Repo.init(path, bare=True).git.fetch("origin")
 
     def delete_repo(self, full_name):
-        self.logger.info("Deleting {}".format(full_name))
-
         path = self.get_repo_path(full_name)
         if not os.path.exists(path):
+            self.logger.debug("Repo {} already deleted".format(full_name))
             return
 
-        target = "{}/.{}.delete.{}".format(
-            os.path.dirname(path), os.path.basename(path), os.getpid())
-        os.rename(path, target)
-        shutil.rmtree(target)
+        with self.timed_action("Deleting {}".format(full_name)):
+            target = "{}/.{}.delete.{}".format(
+                os.path.dirname(path), os.path.basename(path), os.getpid())
+            os.rename(path, target)
+            shutil.rmtree(target)
 
     def get_repo_times(self, before=None):
         if before is None:
