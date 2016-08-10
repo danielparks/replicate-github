@@ -53,7 +53,7 @@ class WebhookHandler(http.server.BaseHTTPRequestHandler):
         else:
             self.server.mirror.fetch_repo(full_name)
 
-        self.send(200, "OK")
+        self.send(202, "Accepted")
 
     def authenticate(self, data):
         if self.server.secret is None:
@@ -77,4 +77,14 @@ class WebhookServer(http.server.HTTPServer):
         http.server.HTTPServer.__init__(self, address, WebhookHandler)
 
 def serve(mirror, secret=None, address=("127.0.0.1", 8080)):
+    """
+    Start an HTTP server on address to server webhooks
+
+    This runs in the foreground.
+
+    mirror: a Mirror or AsyncMirror object. AsyncMirror is recommended so that
+        webhooks can return without waiting for the operation to complete.
+    secret: the shared secret used to authenticate GitHub.
+    address: (ip, port) to listen on.
+    """
     WebhookServer(address, secret, mirror).serve_forever()

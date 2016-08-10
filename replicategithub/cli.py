@@ -1,5 +1,6 @@
 import click
 import logging
+import multiprocessing
 import os
 import signal
 import sys
@@ -27,15 +28,30 @@ def set_up_logging(level=logging.WARNING):
 
 @click.group()
 @click.option('--verbose', '-v', default=False, is_flag=True)
+@click.option('--debug', '-d', default=False, is_flag=True)
 @click.option('--config-file', '-c', type=click.File('rt'),
     default="/etc/replicate-github.yaml")
-def main(verbose, config_file):
+def main(verbose, debug, config_file):
+    """
+    Mirror GitHub repositories
+
+    \b
+      * mirror arbitrary GitHub repositories
+      * mirror all GitHub repositories under an organization
+      * serve webhook endpoints to update mirrors automatically
+    """
+
     global config, mirror
 
-    if verbose:
+    if debug:
+        level = logging.DEBUG
+        multiprocessing.log_to_stderr().setLevel(level)
+    elif verbose:
         level = logging.INFO
+        multiprocessing.log_to_stderr().setLevel(logging.WARNING)
     else:
         level = logging.WARNING
+        multiprocessing.log_to_stderr().setLevel(logging.WARNING)
 
     config = yaml.safe_load(config_file.read())
     config_file.close()
@@ -69,14 +85,35 @@ def fetch(repos):
             mirror.fetch_repo(repo_name)
 
 @main.command()
-@click.option('--listen', '-l', default="localhost")
-@click.option('--port', '-p', type=int, default=8080)
-def serve(listen, port):
+@click.option('--workers', '-j', type=int, default=2, metavar="COUNT",
+    help="Number of git subprocesses to use (default: 2).")
+@click.option('--older-than', type=int, default=24*60*60, metavar="SECONDS",
+    help="Cut off age in seconds (default: 86400).")
+def freshen(workers, older_than):
+    """ Update oldest repos in mirror """
+    global config, mirror
+
+    logger = logging.getLogger("freshen")
+    logger.info("Freshening repos with {} workers".format(workers))
+    manager = replicategithub.AsyncMirror(mirror, worker_count=workers)
+    manager.fetch_old_repos(older_than)
+    manager.stop()
+
+@main.command()
+@click.option('--listen', '-l', default="localhost", metavar="ADDRESS",
+    help="Address to listen on (default: localhost).")
+@click.option('--port', '-p', type=int, default=8080, metavar="PORT",
+    help="Port to listen on (default: 8080).")
+@click.option('--workers', '-j', type=int, default=2, metavar="COUNT",
+    help="Number of git subprocesses to use (default: 2).")
+def serve(listen, port, workers):
     """ Serve webhook endpoint for GitHub """
     global config, mirror
+
     logger = logging.getLogger("serve")
     logger.info("Serving HTTP on {}:{}".format(listen, port))
+
     replicategithub.webhook.serve(
-        mirror,
+        replicategithub.AsyncMirror(mirror, worker_count=workers),
         config.get('webhook_secret', None),
         (listen, port))
