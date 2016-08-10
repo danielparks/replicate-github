@@ -103,16 +103,19 @@ class Mirror:
 
 def worker(mirror, queue):
     """ Worker for AsyncMirror """
-    while True:
-        task = queue.get()
-        if task[0] == "fetch":
-            mirror.fetch_repo(task[1])
-        elif task[0] == "delete":
-            mirror.delete_repo(task[1])
-        elif task[0] == "stop":
-            return
-        else:
-            raise Exception("Unknown action: {}".format(action))
+    try:
+        while True:
+            task = queue.get()
+            if task[0] == "fetch":
+                mirror.fetch_repo(task[1])
+            elif task[0] == "delete":
+                mirror.delete_repo(task[1])
+            elif task[0] == "stop":
+                return
+            else:
+                raise Exception("Unknown action: {}".format(action))
+    except KeyboardInterrupt:
+        return
 
 class AsyncMirror:
     """ A wrapper around Mirror that performs operations asynchronously """
