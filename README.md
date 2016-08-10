@@ -13,21 +13,28 @@ A tool to manage mirrors of GitHub repos.
   Aborted!
   $ replicate-github --verbose serve
   serve: Serving HTTP on localhost:8080
+  AsyncMirror: Starting with 2 workers
+  127.0.0.1 - - [10/Aug/2016 01:18:35] "POST / HTTP/1.1" 202 -
   Mirror: Fetching puppetlabs/puppetlabs-modules
-  127.0.0.1 - - [08/Aug/2016 14:40:21] "POST / HTTP/1.1" 200 -
   ^C
   Aborted!
 
 ### Configuration file format
 
-This takes a configuration file, which is located at `/etc/replicate-github.yaml` by default. You may specify a different file with the `--config-file` option. The file only requires three settings:
+This loads configuration from `/etc/replicate-github.yaml` by default. You may specify a different file with the `--config-file` option. The file only requires three settings:
 
 ~~~ yaml
 mirror_path: "/srv/replicate-github"
 github_user: "GitHub username"
 github_token: "GitHub API token"
-# Optional:
-webhook_secret: "secret configured for webhook in GitHub"
+~~~
+
+Optionally, defaults for subcommands (e.g. `serve`) may be set:
+
+~~~ yaml
+serve:
+  secret: "secret configured for webhook in GitHub"
+  port: 8000
 ~~~
 
 You can generate a GitHub API token under [Settings > Personal access tokens](https://github.com/settings/tokens).
