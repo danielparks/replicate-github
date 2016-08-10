@@ -31,6 +31,7 @@ def set_up_logging(level=logging.WARNING):
 @click.option('--debug', '-d', default=False, is_flag=True)
 @click.option('--config-file', '-c', type=click.File('rt'),
     default="/etc/replicate-github.yaml")
+@click.version_option()
 def main(verbose, debug, config_file):
     """
     Mirror GitHub repositories
