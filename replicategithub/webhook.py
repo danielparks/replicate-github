@@ -6,8 +6,6 @@ import json
 import os
 import sys
 
-import replicategithub
-
 class WebhookHandler(http.server.BaseHTTPRequestHandler):
     def send(self, status, message, content=None):
         if content is None:
@@ -46,7 +44,6 @@ class WebhookHandler(http.server.BaseHTTPRequestHandler):
             return
 
         full_name = payload["repository"]["full_name"]
-        replicategithub.validate_repo_name(full_name)
 
         if payload["deleted"]:
             self.server.mirror.delete_repo(full_name)

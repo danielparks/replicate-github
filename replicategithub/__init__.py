@@ -11,21 +11,6 @@ import time
 
 from replicategithub import webhook
 
-def validate_repo_name(full_name):
-    """
-    Fail if the passed full repo name is invalid
-
-    This is my best guess at what GitHub supports.
-
-    This is important for security, a repo name with a "../" or starting with
-    "/" could result in access outside of the mirror directory.
-    """
-    # Best guess at GitHub repo name format
-    legal_name = r"[A-Za-z0-9][A-Za-z0-9_.-]*"
-    name_re = re.compile("^{0}/{0}$".format(legal_name))
-    if not name_re.match(full_name):
-        raise Exception("Illegal repo name: '{}'".format(full_name))
-
 def get_organization_repos(token, organization_name):
     """ Get repos in a given organization from GitHub """
     return github.Github(token)\
@@ -63,7 +48,22 @@ class Mirror:
         self.logger.debug("{} finished in {:.3f} seconds"
             .format(message, time.time() - start))
 
+    def validate_repo_name(self, full_name):
+        """
+        Fail if the passed full repo name is invalid
+
+        This is my best guess at what GitHub supports.
+
+        This is important for security, a repo name with a "../" or starting with
+        "/" could result in access outside of the mirror directory.
+        """
+        legal_name = r"[A-Za-z0-9][A-Za-z0-9_.-]*"
+        name_re = re.compile("^{0}/{0}$".format(legal_name))
+        if not name_re.match(full_name):
+            raise Exception("Illegal repo name: '{}'".format(full_name))
+
     def get_repo_path(self, full_name):
+        self.validate_repo_name(full_name)
         return "{}/{}.git".format(self.path, full_name)
 
     def get_clone_url(self, full_name):

@@ -88,10 +88,8 @@ def fetch(config, repos):
 
         if parts[1] == "*":
             for repo in replicategithub.get_organization_repos(config["github_token"], parts[0]):
-                replicategithub.validate_repo_name(repo.full_name)
                 mirror.fetch_repo(repo.full_name)
         else:
-            replicategithub.validate_repo_name(repo_name)
             mirror.fetch_repo(repo_name)
 
 @main.command()
