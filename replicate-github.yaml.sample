@@ -4,5 +4,6 @@ mirror_path: "/srv/replicate-github"
 github_user: "a github username"
 github_token: "a github api token"
 
-# If you use webhooks, specify the shared secret to authenticate requests
-webhook_secret: null
+serve:
+  # If you use webhooks, specify the shared secret to authenticate requests
+  secret: null

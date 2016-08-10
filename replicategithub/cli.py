@@ -26,13 +26,22 @@ def set_up_logging(level=logging.WARNING):
     root.setLevel(level)
     root.addHandler(handler)
 
+def get_mirror(config):
+    return replicategithub.Mirror(
+        config["mirror_path"], config["github_user"], config["github_token"])
+
+class Config(dict):
+    pass
+pass_config = click.make_pass_decorator(Config, ensure=True)
+
 @click.group()
 @click.option('--verbose', '-v', default=False, is_flag=True)
 @click.option('--debug', '-d', default=False, is_flag=True)
 @click.option('--config-file', '-c', type=click.File('rt'),
     default="/etc/replicate-github.yaml")
 @click.version_option()
-def main(verbose, debug, config_file):
+@click.pass_context
+def main(context, verbose, debug, config_file):
     """
     Mirror GitHub repositories
 
@@ -42,7 +51,11 @@ def main(verbose, debug, config_file):
       * serve webhook endpoints to update mirrors automatically
     """
 
-    global config, mirror
+    config = context.ensure_object(Config)
+    config.update(yaml.safe_load(config_file.read()))
+    config_file.close()
+
+    context.default_map = config
 
     if debug:
         level = logging.DEBUG
@@ -54,20 +67,16 @@ def main(verbose, debug, config_file):
         level = logging.WARNING
         multiprocessing.log_to_stderr().setLevel(logging.WARNING)
 
-    config = yaml.safe_load(config_file.read())
-    config_file.close()
-
-    mirror = replicategithub.Mirror(
-        config["mirror_path"], config["github_user"], config["github_token"])
-
     set_up_logging(level)
 
 @main.command()
 @click.argument("repos", metavar="ORG/REPO [ORG/REPO ...]", required=True, nargs=-1)
-def fetch(repos):
+@pass_config
+def fetch(config, repos):
     """ Fetch repos into the mirror """
-    global mirror
+
     logger = logging.getLogger("fetch")
+    mirror = get_mirror(config)
 
     for repo_name in repos:
         parts = repo_name.split("/")
@@ -90,12 +99,14 @@ def fetch(repos):
     help="Number of git subprocesses to use (default: 2).")
 @click.option('--older-than', type=int, default=24*60*60, metavar="SECONDS",
     help="Cut off age in seconds (default: 86400).")
-def freshen(workers, older_than):
+@pass_config
+def freshen(config, workers, older_than):
     """ Update oldest repos in mirror """
-    global config, mirror
 
     logger = logging.getLogger("freshen")
     logger.info("Freshening repos with {} workers".format(workers))
+    mirror = get_mirror(config)
+
     manager = replicategithub.AsyncMirror(mirror, worker_count=workers)
     manager.fetch_old_repos(older_than)
     manager.stop()
@@ -107,14 +118,17 @@ def freshen(workers, older_than):
     help="Port to listen on (default: 8080).")
 @click.option('--workers', '-j', type=int, default=2, metavar="COUNT",
     help="Number of git subprocesses to use (default: 2).")
-def serve(listen, port, workers):
+@click.option('--secret', metavar="STRING",
+    help="Secret to authenticate Github")
+@pass_config
+def serve(config, listen, port, workers, secret):
     """ Serve webhook endpoint for GitHub """
-    global config, mirror
 
     logger = logging.getLogger("serve")
     logger.info("Serving HTTP on {}:{}".format(listen, port))
+    mirror = get_mirror(config)
 
     replicategithub.webhook.serve(
         replicategithub.AsyncMirror(mirror, worker_count=workers),
-        config.get('webhook_secret', None),
+        secret,
         (listen, port))
