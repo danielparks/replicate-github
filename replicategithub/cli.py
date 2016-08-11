@@ -159,17 +159,17 @@ def sync_org(config, orgs):
     help="Port to listen on (default 8080).")
 @click.option('--secret', metavar="STRING",
     help="Secret to authenticate Github.")
-@click.option('--orgs', metavar="ORG", multiple=True,
+@click.option('--org', metavar="ORG", multiple=True,
     help="Organizations to keep in sync (default none).")
 @click.option('--update-older-than', type=int, default=24*60*60, metavar="SECONDS",
     help="Ensure that all mirrors get updated at least this frequently"
         " (default 24*60*60). 0 means to only update on events.")
 @pass_config
-def serve(config, listen, port, secret, orgs, update_older_than):
+def serve(config, listen, port, secret, org, update_older_than):
     """ Serve webhook endpoint for GitHub events. """
     replicategithub.webhook.serve(
         config.get_manager(),
         secret=secret,
         listen=(listen, port),
-        orgs=orgs,
+        orgs=org,
         update_older_than=update_older_than)
