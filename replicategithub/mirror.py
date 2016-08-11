@@ -73,8 +73,8 @@ class Collection:
             raise MirrorException("Mirror directory '{}' not found".format(path))
 
     @contextmanager
-    def timed_action(self, message):
-        self.logger.info(message)
+    def timed_action(self, message, level=logging.INFO):
+        self.logger.log(level, message)
         start = time.time()
         yield
         self.logger.debug("{} finished in {:.3f} seconds"
@@ -132,7 +132,8 @@ class Collection:
             yield path[len(self.path) + 1  : -4]
 
     def get_mirror_names_set(self, match="*/*"):
-        with self.timed_action("Getting {} mirrors".format(match)):
+        with self.timed_action("Getting {} local mirrors".format(match),
+                level=logging.DEBUG):
             return set(self.get_mirror_names(match))
 
     def get_org_repos(self, org):
@@ -145,21 +146,23 @@ class Collection:
 
     def get_org_repos_set(self, org):
         """ Get repos in a given organization from GitHub as a set """
-        with self.timed_action("Getting GitHub {} repos".format(org)):
+        with self.timed_action("Getting {}/* repos from GitHub".format(org),
+                level=logging.DEBUG):
             return set(self.get_org_repos(org))
 
     def initialize_mirror(self, full_name):
+        self.logger.debug("Initializing {}".format(full_name))
+
         path = self.get_mirror_path(full_name)
         if os.path.exists(path):
             raise MirrorException("Cannot init mirror; path exists: {}".format(path))
 
-        with self.timed_action("Initializing {}".format(full_name)):
-            org_path = os.path.dirname(path)
-            if not os.path.exists(org_path):
-                os.mkdir(org_path, 0o755)
+        org_path = os.path.dirname(path)
+        if not os.path.exists(org_path):
+            os.mkdir(org_path, 0o755)
 
-            git.Repo.init(path, bare=True).git.remote(
-                "add", "--mirror", "origin", self.get_clone_url(full_name))
+        git.Repo.init(path, bare=True).git.remote(
+            "add", "--mirror", "origin", self.get_clone_url(full_name))
 
     def mirror_repo(self, full_name):
         path = self.get_mirror_path(full_name)

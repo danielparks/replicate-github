@@ -3,21 +3,15 @@
 A tool to manage mirrors of GitHub repos.
 
   $ replicate-github --verbose mirror puppetlabs/puppet 'github/*'
-  Mirror: Initializing puppetlabs/puppet
-  Mirror: Fetching puppetlabs/puppet
-  Mirror: Initializing github/version_sorter
-  Mirror: Fetching github/version_sorter
-  Mirror: Initializing github/markup
-  Mirror: Fetching github/markup
+  mirror.Collection: Fetching puppetlabs/puppet
+  mirror.Collection: Fetching github/garethr-docker
+  mirror.Collection: Fetching github/github-ldap
   ^C
-  Aborted!
   $ replicate-github --verbose serve
-  serve: Serving HTTP on localhost:8080
-  AsyncMirror: Starting with 2 workers
+  WebhookServer: Webhook server listening on localhost:8080
   127.0.0.1 - - [10/Aug/2016 01:18:35] "POST / HTTP/1.1" 202 -
-  Mirror: Fetching puppetlabs/puppetlabs-modules
+  mirror.Collection: Fetching puppetlabs/puppet
   ^C
-  Aborted!
 
 ### Configuration file format
 

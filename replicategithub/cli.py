@@ -1,6 +1,7 @@
 import click
 import logging
 import multiprocessing
+import signal
 import sys
 import yaml
 
@@ -49,16 +50,21 @@ def main():
     config = Config()
 
     try:
-        cli(standalone_mode=False, obj=config)
+        try:
+            cli(standalone_mode=False, obj=config)
+        finally:
+            config.stop()
     except click.ClickException as e:
         e.show()
         sys.exit(e.exit_code)
     except click.Abort as e:
         sys.exit(e)
+    except KeyboardInterrupt:
+        # Click transforms this into click.Abort, but it doesn't get the chance
+        # if it's raised outside of cli() (i.e. in config.stop()).
+        sys.exit(128 + signal.SIGINT)
     except replicategithub.mirror.MirrorException as e:
         sys.exit("Error: {}".format(e))
-    finally:
-        config.stop()
 
 @click.group()
 @click.option('--workers', '-j', type=int, default=None, metavar="COUNT",
