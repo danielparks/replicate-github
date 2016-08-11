@@ -8,7 +8,7 @@ import yaml
 
 import replicategithub
 
-def set_up_logging(level=logging.WARNING):
+def set_up_logging(level=logging.WARNING, library_level=logging.WARNING):
     logging.captureWarnings(True)
 
     handler = logging.StreamHandler(stream=sys.stdout)
@@ -22,6 +22,9 @@ def set_up_logging(level=logging.WARNING):
     root = logging.getLogger()
     root.setLevel(level)
     root.addHandler(handler)
+
+    logging.getLogger("github").setLevel(library_level)
+    multiprocessing.log_to_stderr().setLevel(library_level)
 
 def get_async_mirror(config):
     mirror = replicategithub.Mirror(
@@ -64,13 +67,13 @@ def main(context, workers, verbose, debug, config_file):
 
     if debug:
         level = logging.DEBUG
-        multiprocessing.log_to_stderr().setLevel(level)
+        library_level = logging.INFO
     elif verbose:
         level = logging.INFO
-        multiprocessing.log_to_stderr().setLevel(logging.WARNING)
+        library_level = logging.WARNING
     else:
         level = logging.WARNING
-        multiprocessing.log_to_stderr().setLevel(logging.WARNING)
+        library_level = logging.WARNING
 
     set_up_logging(level)
 
