@@ -119,13 +119,13 @@ def mirror(config, matches):
 
 @cli.command()
 @click.option('--older-than', type=int, default=24*60*60, metavar="SECONDS",
-    help="Cut off age in seconds (default 86400).")
+    help="How old a mirror has to be before it's updated (default 24*60*60).")
 @pass_config
 def freshen(config, older_than):
     """ Update oldest repos in mirror. """
 
     logger = logging.getLogger("freshen")
-    logger.info("Freshening repos")
+    logger.info("Freshening repos older than {} seconds".format(older_than))
 
     config.get_manager().update_old_repos(older_than)
 
@@ -152,12 +152,18 @@ def sync_org(config, orgs):
 @click.option('--port', '-p', type=int, default=8080, metavar="PORT",
     help="Port to listen on (default 8080).")
 @click.option('--secret', metavar="STRING",
-    help="Secret to authenticate Github")
+    help="Secret to authenticate Github.")
+@click.option('--orgs', metavar="ORG", multiple=True,
+    help="Organizations to keep in sync (default none).")
+@click.option('--update-older-than', type=int, default=24*60*60, metavar="SECONDS",
+    help="Ensure that all mirrors get updated at least this frequently"
+        " (default 24*60*60). 0 means to only update on events.")
 @pass_config
-def serve(config, listen, port, secret):
-    """ Serve webhook endpoint for GitHub. """
-
-    logger = logging.getLogger("serve")
-    logger.info("Serving HTTP on {}:{}".format(listen, port))
-
-    replicategithub.webhook.serve(config.get_manager(), secret, (listen, port))
+def serve(config, listen, port, secret, orgs, update_older_than):
+    """ Serve webhook endpoint for GitHub events. """
+    replicategithub.webhook.serve(
+        config.get_manager(),
+        secret=secret,
+        listen=(listen, port),
+        orgs=orgs,
+        update_older_than=update_older_than)

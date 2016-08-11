@@ -2,8 +2,10 @@ import cgi
 import hashlib
 import http.server
 import hmac
+import logging
 import json
 import os
+import threading
 
 class WebhookHandler(http.server.BaseHTTPRequestHandler):
     def send(self, status, message, content=None):
@@ -67,12 +69,46 @@ class WebhookHandler(http.server.BaseHTTPRequestHandler):
         return hmac.compare_digest(correct, signature)
 
 class WebhookServer(http.server.HTTPServer):
-    def __init__(self, address, secret, manager):
+    def __init__(self, address, secret, manager, periodic_interval=15*60):
         self.manager = manager
         self.secret = secret
-        http.server.HTTPServer.__init__(self, address, WebhookHandler)
+        self.timer = None
+        self.periodic_interval = periodic_interval
+        self.logger = logging.getLogger("WebhookServer")
 
-def serve(manager, secret=None, address=("127.0.0.1", 8080)):
+        http.server.HTTPServer.__init__(self, address, WebhookHandler)
+        self.logger.info("Webhook server listening on {}:{}"
+            .format(address[0], address[1]))
+
+    def start_periodic(self, orgs, update_older_than):
+        self.orgs = orgs
+        self.update_older_than = update_older_than
+        self._schedule_periodic()
+
+    def stop_periodic(self):
+        if self.timer:
+            self.timer.cancel()
+            self.timer = None
+
+    def _schedule_periodic(self):
+        self.timer = threading.Timer(self.periodic_interval, self._periodic)
+        self.timer.start()
+
+    def _periodic(self):
+        for org in self.orgs:
+            self.logger.info("Periodic: synchronizing '{}'".format(org))
+            self.manager.sync_org(org)
+
+        if self.update_older_than:
+            self.logger.info("Periodic: updating mirrors older than {} seconds"
+                .format(self.update_older_than))
+            self.manager.update_old_repos(maximum_age=self.update_older_than)
+
+        self._schedule_periodic()
+
+
+def serve(manager, secret=None, listen=("127.0.0.1", 8080),
+        orgs=[], update_older_than=0):
     """
     Start an HTTP server on address to server webhooks
 
@@ -81,5 +117,13 @@ def serve(manager, secret=None, address=("127.0.0.1", 8080)):
     manager: a MirrorManager object.
     secret: the shared secret used to authenticate GitHub.
     address: (ip, port) to listen on.
+    orgs: organizations to keep in sync.
+    update_older_than: update mirrors that haven't been updated in this long.
     """
-    WebhookServer(address, secret, manager).serve_forever()
+    server = WebhookServer(listen, secret, manager)
+    if orgs or update_older_than:
+        server.start_periodic(orgs, update_older_than)
+    try:
+        server.serve_forever()
+    finally:
+        server.stop_periodic()

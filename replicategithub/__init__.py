@@ -32,8 +32,8 @@ class MirrorManager:
         self.logger.debug("Adding sync job: {}".format(org))
         self.queue.put(("sync_org", org))
 
-    def update_old_repos(self, older_than=24*60*60):
-        before = time.time() - older_than
+    def update_old_repos(self, maximum_age=24*60*60):
+        before = time.time() - maximum_age
         for repo_name in self.collection.get_oldest_mirrors(before):
             self.logger.debug("Adding freshen job: update {}".format(repo_name))
             self.queue.put(("mirror", repo_name))

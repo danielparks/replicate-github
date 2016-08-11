@@ -1,3 +1,1 @@
-Automatically run freshen and sync-org periodically.
-
 Allow --help to be used on commands without specifying a config file.
