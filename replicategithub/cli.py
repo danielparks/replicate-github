@@ -1,8 +1,6 @@
 import click
 import logging
 import multiprocessing
-import os
-import signal
 import sys
 import yaml
 
@@ -28,23 +26,22 @@ def set_up_logging(level=logging.WARNING, library_level=logging.WARNING):
 
 class Config(dict):
     def __init__(self, *args, **kwargs):
-        self.mirror = None
+        self.manager = None
         dict.__init__(self, *args, **kwargs)
 
-    def get_mirror(self):
-        if self.mirror:
-            return self.mirror
-        self.mirror = replicategithub.AsyncMirror(
-            replicategithub.Mirror(
-                self["mirror_path"],
-                self["github_user"],
-                self["github_token"]),
+    def get_manager(self):
+        if self.manager:
+            return self.manager
+        self.manager = replicategithub.MirrorManager(
+            path=self["mirror_path"],
+            user=self["github_user"],
+            token=self["github_token"],
             worker_count=self["workers"])
-        return self.mirror
+        return self.manager
 
     def stop(self):
-        if self.mirror:
-            self.mirror.stop()
+        if self.manager:
+            self.manager.stop()
 
 pass_config = click.make_pass_decorator(Config)
 
@@ -56,10 +53,10 @@ def main():
     except click.ClickException as e:
         e.show()
         sys.exit(e.exit_code)
-    except replicategithub.MirrorException as e:
+    except click.Abort as e:
+        sys.exit(e)
+    except replicategithub.mirror.MirrorException as e:
         sys.exit("Error: {}".format(e))
-    except KeyboardInterrupt:
-        sys.exit(128 + signal.SIGINT)
     finally:
         config.stop()
 
@@ -116,9 +113,9 @@ def mirror(config, matches):
                 "'{}' does not match owner/repo or owner/*".format(match))
 
         if parts[1] == "*":
-            config.get_mirror().mirror_org(parts[0])
+            config.get_manager().mirror_org(parts[0])
         else:
-            config.get_mirror().mirror_repo(match)
+            config.get_manager().mirror_repo(match)
 
 @cli.command()
 @click.option('--older-than', type=int, default=24*60*60, metavar="SECONDS",
@@ -130,7 +127,7 @@ def freshen(config, older_than):
     logger = logging.getLogger("freshen")
     logger.info("Freshening repos")
 
-    config.get_mirror().update_old_repos(older_than)
+    config.get_manager().update_old_repos(older_than)
 
 @cli.command(name="sync-org")
 @click.argument("orgs", metavar="ORG [ORG ...]", required=True, nargs=-1)
@@ -147,7 +144,7 @@ def sync_org(config, orgs):
 
     for org in orgs:
         logger.info("Syncing {} organization".format(org))
-        config.get_mirror().sync_org(org)
+        config.get_manager().sync_org(org)
 
 @cli.command()
 @click.option('--listen', '-l', default="localhost", metavar="ADDRESS",
@@ -163,7 +160,4 @@ def serve(config, listen, port, secret):
     logger = logging.getLogger("serve")
     logger.info("Serving HTTP on {}:{}".format(listen, port))
 
-    replicategithub.webhook.serve(
-        config.get_mirror(),
-        secret,
-        (listen, port))
+    replicategithub.webhook.serve(config.get_manager(), secret, (listen, port))

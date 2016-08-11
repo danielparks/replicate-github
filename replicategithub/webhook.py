@@ -4,7 +4,6 @@ import http.server
 import hmac
 import json
 import os
-import sys
 
 class WebhookHandler(http.server.BaseHTTPRequestHandler):
     def send(self, status, message, content=None):
@@ -46,9 +45,9 @@ class WebhookHandler(http.server.BaseHTTPRequestHandler):
         full_name = payload["repository"]["full_name"]
 
         if payload["deleted"]:
-            self.server.mirror.delete_repo(full_name)
+            self.server.manager.delete_mirror(full_name)
         else:
-            self.server.mirror.mirror_repo(full_name)
+            self.server.manager.mirror_repo(full_name)
 
         self.send(202, "Accepted")
 
@@ -68,20 +67,19 @@ class WebhookHandler(http.server.BaseHTTPRequestHandler):
         return hmac.compare_digest(correct, signature)
 
 class WebhookServer(http.server.HTTPServer):
-    def __init__(self, address, secret, mirror):
-        self.mirror = mirror
+    def __init__(self, address, secret, manager):
+        self.manager = manager
         self.secret = secret
         http.server.HTTPServer.__init__(self, address, WebhookHandler)
 
-def serve(mirror, secret=None, address=("127.0.0.1", 8080)):
+def serve(manager, secret=None, address=("127.0.0.1", 8080)):
     """
     Start an HTTP server on address to server webhooks
 
     This runs in the foreground.
 
-    mirror: a Mirror or AsyncMirror object. AsyncMirror is recommended so that
-        webhooks can return without waiting for the operation to complete.
+    manager: a MirrorManager object.
     secret: the shared secret used to authenticate GitHub.
     address: (ip, port) to listen on.
     """
-    WebhookServer(address, secret, mirror).serve_forever()
+    WebhookServer(address, secret, manager).serve_forever()
