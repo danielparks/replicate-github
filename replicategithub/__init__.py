@@ -11,13 +11,8 @@ import time
 
 from replicategithub import webhook
 
-try:
-    from click import ClickException
-    class MirrorException(ClickException):
-        pass
-except ImportError:
-    class MirrorException(Exception):
-        pass
+class MirrorException(Exception):
+    pass
 
 class Mirror:
     """

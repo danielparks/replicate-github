@@ -26,14 +26,42 @@ def set_up_logging(level=logging.WARNING, library_level=logging.WARNING):
     logging.getLogger("github").setLevel(library_level)
     multiprocessing.log_to_stderr().setLevel(library_level)
 
-def get_async_mirror(config):
-    mirror = replicategithub.Mirror(
-        config["mirror_path"], config["github_user"], config["github_token"])
-    return replicategithub.AsyncMirror(mirror, worker_count=config["workers"])
-
 class Config(dict):
-    pass
-pass_config = click.make_pass_decorator(Config, ensure=True)
+    def __init__(self, *args, **kwargs):
+        self.mirror = None
+        dict.__init__(self, *args, **kwargs)
+
+    def get_mirror(self):
+        if self.mirror:
+            return self.mirror
+        self.mirror = replicategithub.AsyncMirror(
+            replicategithub.Mirror(
+                self["mirror_path"],
+                self["github_user"],
+                self["github_token"]),
+            worker_count=self["workers"])
+        return self.mirror
+
+    def stop(self):
+        if self.mirror:
+            self.mirror.stop()
+
+pass_config = click.make_pass_decorator(Config)
+
+def main():
+    config = Config()
+
+    try:
+        cli(standalone_mode=False, obj=config)
+    except click.ClickException as e:
+        e.show()
+        sys.exit(e.exit_code)
+    except replicategithub.MirrorException as e:
+        sys.exit("Error: {}".format(e))
+    except KeyboardInterrupt:
+        sys.exit(128 + signal.SIGINT)
+    finally:
+        config.stop()
 
 @click.group()
 @click.option('--workers', '-j', type=int, default=None, metavar="COUNT",
@@ -43,8 +71,8 @@ pass_config = click.make_pass_decorator(Config, ensure=True)
 @click.option('--config-file', '-c', type=click.File('rt'),
     default="/etc/replicate-github.yaml")
 @click.version_option()
-@click.pass_context
-def main(context, workers, verbose, debug, config_file):
+@pass_config
+def cli(config, workers, verbose, debug, config_file):
     """
     Mirror GitHub repositories.
 
@@ -54,7 +82,6 @@ def main(context, workers, verbose, debug, config_file):
       * Serve webhook endpoints to update mirrors automatically.
     """
 
-    config = context.ensure_object(Config)
     config.update(yaml.safe_load(config_file.read()))
     config_file.close()
 
@@ -62,8 +89,6 @@ def main(context, workers, verbose, debug, config_file):
         config['workers'] = workers
     if 'workers' not in config:
         config['workers'] = 1
-
-    context.default_map = config
 
     if debug:
         level = logging.DEBUG
@@ -77,32 +102,25 @@ def main(context, workers, verbose, debug, config_file):
 
     set_up_logging(level)
 
-@main.command()
+@cli.command()
 @click.argument("matches", metavar="ORG/REPO [ORG/REPO ...]", required=True, nargs=-1)
 @pass_config
 def mirror(config, matches):
     """ Create or update repo mirrors. """
 
-    logger = logging.getLogger("mirror")
-    mirror = get_async_mirror(config)
-
     for match in matches:
-        # Friendly error message for likely mistake
+        # Friendly error message for likely mistakes
         parts = match.split("/")
         if len(parts) != 2 or parts[0] == "*":
-            for child in multiprocessing.active_children():
-                child.terminate()
             raise click.ClickException(
                 "'{}' does not match owner/repo or owner/*".format(match))
 
         if parts[1] == "*":
-            mirror.mirror_org(parts[0])
+            config.get_mirror().mirror_org(parts[0])
         else:
-            mirror.mirror_repo(match)
+            config.get_mirror().mirror_repo(match)
 
-    mirror.stop()
-
-@main.command()
+@cli.command()
 @click.option('--older-than', type=int, default=24*60*60, metavar="SECONDS",
     help="Cut off age in seconds (default 86400).")
 @pass_config
@@ -112,11 +130,9 @@ def freshen(config, older_than):
     logger = logging.getLogger("freshen")
     logger.info("Freshening repos")
 
-    mirror = get_async_mirror(config)
-    mirror.update_old_repos(older_than)
-    mirror.stop()
+    config.get_mirror().update_old_repos(older_than)
 
-@main.command(name="sync-org")
+@cli.command(name="sync-org")
 @click.argument("orgs", metavar="ORG [ORG ...]", required=True, nargs=-1)
 @pass_config
 def sync_org(config, orgs):
@@ -128,15 +144,12 @@ def sync_org(config, orgs):
     """
 
     logger = logging.getLogger("sync-org")
-    mirror = get_async_mirror(config)
 
     for org in orgs:
         logger.info("Syncing {} organization".format(org))
-        mirror.sync_org(org)
+        config.get_mirror().sync_org(org)
 
-    mirror.stop()
-
-@main.command()
+@cli.command()
 @click.option('--listen', '-l', default="localhost", metavar="ADDRESS",
     help="Address to listen on (default localhost).")
 @click.option('--port', '-p', type=int, default=8080, metavar="PORT",
@@ -151,6 +164,6 @@ def serve(config, listen, port, secret):
     logger.info("Serving HTTP on {}:{}".format(listen, port))
 
     replicategithub.webhook.serve(
-        get_async_mirror(config),
+        config.get_mirror(),
         secret,
         (listen, port))
