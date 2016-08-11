@@ -1,13 +1,15 @@
 # replicate-github
 
-A tool to manage mirrors of GitHub repos.
+replicate-github sets up and maintains mirrors of GitHub organizations and
+individual repos. It can serve webhook endpoints and keep the mirrors updated
+continuously, or it can be run ad hoc from the command line.
 
   $ replicate-github --verbose mirror puppetlabs/puppet 'github/*'
   mirror.Collection: Fetching puppetlabs/puppet
   mirror.Collection: Fetching github/garethr-docker
   mirror.Collection: Fetching github/github-ldap
   ^C
-  $ replicate-github --verbose serve
+  $ replicate-github --verbose serve --org github
   WebhookServer: Webhook server listening on localhost:8080
   127.0.0.1 - - [10/Aug/2016 01:18:35] "POST / HTTP/1.1" 202 -
   mirror.Collection: Fetching puppetlabs/puppet
@@ -15,7 +17,8 @@ A tool to manage mirrors of GitHub repos.
 
 ### Configuration file format
 
-This loads configuration from `/etc/replicate-github.yaml` by default. You may specify a different file with the `--config-file` option. The file only requires three settings:
+Configuration is loaded from the value of `--config-file`, which defaults to
+`/etc/replicate-github.yaml`. The file requires three settings:
 
 ~~~ yaml
 mirror_path: "/srv/replicate-github"
@@ -34,4 +37,5 @@ serve:
   port: 8000
 ~~~
 
-You can generate a GitHub API token under [Settings > Personal access tokens](https://github.com/settings/tokens).
+You can generate a GitHub API token under [Settings > Personal access
+tokens](https://github.com/settings/tokens).
