@@ -182,10 +182,12 @@ def serve(config, listen, port, secret, update_org, update_older_than, periodic_
     There are two options that are used to ensure updates are applied even if
     events are lost for some reason:
 
+    \b
     --update-older-than SECONDS
         Ensure that every mirror is checked for updates at least every SECONDS.
         By default this is set to a day (86400 seconds).
 
+    \b
     --update-org ORG
         Organizations to periodically check for new or deleted repos. May be
         specified multiple times; no organizations are synced by default.
