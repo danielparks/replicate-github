@@ -69,19 +69,21 @@ class WebhookHandler(http.server.BaseHTTPRequestHandler):
         return hmac.compare_digest(correct, signature)
 
 class WebhookServer(http.server.HTTPServer):
-    def __init__(self, address, secret, manager, periodic_interval=15*60):
+    def __init__(self, address, secret, manager):
         self.manager = manager
         self.secret = secret
         self.timer = None
-        self.periodic_interval = periodic_interval
+        self.periodic_interval = 0
         self.logger = logging.getLogger("WebhookServer")
 
         http.server.HTTPServer.__init__(self, address, WebhookHandler)
         self.logger.info("Webhook server listening on {}:{}"
             .format(address[0], address[1]))
 
-    def start_periodic(self, orgs, update_older_than):
-        self.orgs = orgs
+    def start_periodic(self, periodic_interval=15*60, update_orgs=[],
+            update_older_than=0):
+        self.periodic_interval = periodic_interval
+        self.update_orgs = update_orgs
         self.update_older_than = update_older_than
         self._schedule_periodic()
 
@@ -91,11 +93,12 @@ class WebhookServer(http.server.HTTPServer):
             self.timer = None
 
     def _schedule_periodic(self):
-        self.timer = threading.Timer(self.periodic_interval, self._periodic)
-        self.timer.start()
+        if self.periodic_interval > 0:
+            self.timer = threading.Timer(self.periodic_interval, self._periodic)
+            self.timer.start()
 
     def _periodic(self):
-        for org in self.orgs:
+        for org in self.update_orgs:
             self.logger.info("Periodic: synchronizing '{}'".format(org))
             self.manager.sync_org(org)
 
@@ -108,21 +111,23 @@ class WebhookServer(http.server.HTTPServer):
 
 
 def serve(manager, secret=None, listen=("127.0.0.1", 8080),
-        orgs=[], update_older_than=0):
+        periodic_interval=15*60, update_orgs=[], update_older_than=0):
     """
-    Start an HTTP server on address to server webhooks
+    Start an HTTP server to serve webhooks.
 
     This runs in the foreground.
 
     manager: a MirrorManager object.
     secret: the shared secret used to authenticate GitHub.
     address: (ip, port) to listen on.
-    orgs: organizations to keep in sync.
+    periodic_interval: how frequently to run periodic tasks.
+    update_orgs: organizations to keep in sync.
     update_older_than: update mirrors that haven't been updated in this long.
     """
     server = WebhookServer(listen, secret, manager)
-    if orgs or update_older_than:
-        server.start_periodic(orgs, update_older_than)
+    if update_orgs or update_older_than:
+        server.start_periodic(
+            periodic_interval, update_orgs, update_older_than)
     try:
         server.serve_forever()
     finally:

@@ -159,17 +159,43 @@ def sync_org(config, orgs):
     help="Port to listen on (default 8080).")
 @click.option('--secret', metavar="STRING",
     help="Secret to authenticate Github.")
-@click.option('--org', metavar="ORG", multiple=True,
+@click.option('--update-org', metavar="ORG", multiple=True,
     help="Organizations to keep in sync (default none).")
 @click.option('--update-older-than', type=int, default=24*60*60, metavar="SECONDS",
     help="Ensure that all mirrors get updated at least this frequently"
         " (default 24*60*60). 0 means to only update on events.")
+@click.option('--periodic-interval', type=int, default=15*60, metavar="SECONDS",
+    help="How frequently to run periodic tasks (default 15*60).")
 @pass_config
-def serve(config, listen, port, secret, org, update_older_than):
-    """ Serve webhook endpoint for GitHub events. """
+def serve(config, listen, port, secret, update_org, update_older_than, periodic_interval):
+    """
+    Serve webhook endpoint for GitHub events.
+
+    This will accept any event from GitHub with the specified secret, even if
+    the event is for a repo that is not already mirrored. In other words, this
+    will mirror any repo that it gets an event for, even if it doesn't already
+    know about it.
+
+    There are two options that are used to ensure updates are applied even if
+    events are lost for some reason:
+
+    --update-older-than SECONDS
+        Ensure that every mirror is checked for updates at least every SECONDS.
+        By default this is set to a day (86400 seconds).
+
+    --update-org ORG
+        Organizations to periodically check for new or deleted repos. May be
+        specified multiple times; no organizations are synced by default.
+
+    Neither of these options should be necessary if the webhook is set up for
+    all organizations being tracked; they're an extra layer of safety.
+
+    Both these checks run every interval specified by --periodic-interval.
+    """
     replicategithub.webhook.serve(
         config.get_manager(),
         secret=secret,
         listen=(listen, port),
-        orgs=org,
+        periodic_interval=periodic_interval,
+        update_orgs=update_org,
         update_older_than=update_older_than)
