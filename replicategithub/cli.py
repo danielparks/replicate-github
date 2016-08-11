@@ -156,10 +156,10 @@ def sync_org(config, orgs):
         config.get_manager().sync_org(org)
 
 @cli.command()
-@click.option('--listen', '-l', default="localhost", metavar="ADDRESS",
-    help="Address to listen on (default localhost).")
 @click.option('--port', '-p', type=int, default=8080, metavar="PORT",
     help="Port to listen on (default 8080).")
+@click.option('--address', default="localhost", metavar="ADDRESS",
+    help="Address to listen on (default localhost).")
 @click.option('--secret', metavar="STRING",
     help="Secret to authenticate Github.")
 @click.option('--update-org', metavar="ORG", multiple=True,
@@ -170,7 +170,7 @@ def sync_org(config, orgs):
 @click.option('--periodic-interval', type=int, default=15*60, metavar="SECONDS",
     help="How frequently to run periodic tasks (default 15*60).")
 @pass_config
-def serve(config, listen, port, secret, update_org, update_older_than, periodic_interval):
+def serve(config, port, address, secret, update_org, update_older_than, periodic_interval):
     """
     Serve webhook endpoint for GitHub events.
 
@@ -200,7 +200,7 @@ def serve(config, listen, port, secret, update_org, update_older_than, periodic_
     replicategithub.webhook.serve(
         config.get_manager(),
         secret=secret,
-        listen=(listen, port),
+        listen=(address, port),
         periodic_interval=periodic_interval,
         update_orgs=update_org,
         update_older_than=update_older_than)
