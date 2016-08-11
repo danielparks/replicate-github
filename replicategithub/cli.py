@@ -75,7 +75,8 @@ def main():
     default="/etc/replicate-github.yaml")
 @click.version_option()
 @pass_config
-def cli(config, workers, verbose, debug, config_file):
+@click.pass_context
+def cli(context, config, workers, verbose, debug, config_file):
     """
     Mirror GitHub repositories.
 
@@ -87,6 +88,8 @@ def cli(config, workers, verbose, debug, config_file):
 
     config.update(yaml.safe_load(config_file.read()))
     config_file.close()
+
+    context.default_map = config
 
     if workers is not None:
         config['workers'] = workers
