@@ -37,7 +37,7 @@ pass_config = click.make_pass_decorator(Config, ensure=True)
 
 @click.group()
 @click.option('--workers', '-j', type=int, default=None, metavar="COUNT",
-    help="Number of git subprocesses to use (default: 1).")
+    help="Number of git subprocesses to use (default 1).")
 @click.option('--verbose', '-v', default=False, is_flag=True)
 @click.option('--debug', '-d', default=False, is_flag=True)
 @click.option('--config-file', '-c', type=click.File('rt'),
@@ -46,12 +46,12 @@ pass_config = click.make_pass_decorator(Config, ensure=True)
 @click.pass_context
 def main(context, workers, verbose, debug, config_file):
     """
-    Mirror GitHub repositories
+    Mirror GitHub repositories.
 
     \b
-      * mirror arbitrary GitHub repositories
-      * mirror all GitHub repositories under an organization
-      * serve webhook endpoints to update mirrors automatically
+      * Mirror arbitrary GitHub repositories.
+      * Mirror all GitHub repositories under an organization.
+      * Serve webhook endpoints to update mirrors automatically.
     """
 
     config = context.ensure_object(Config)
@@ -78,52 +78,74 @@ def main(context, workers, verbose, debug, config_file):
     set_up_logging(level)
 
 @main.command()
-@click.argument("repos", metavar="ORG/REPO [ORG/REPO ...]", required=True, nargs=-1)
+@click.argument("matches", metavar="ORG/REPO [ORG/REPO ...]", required=True, nargs=-1)
 @pass_config
-def fetch(config, repos):
-    """ Fetch repos into the mirror """
+def mirror(config, matches):
+    """ Create or update repo mirrors. """
 
-    logger = logging.getLogger("fetch")
+    logger = logging.getLogger("mirror")
     mirror = get_async_mirror(config)
 
-    for repo_name in repos:
-        parts = repo_name.split("/")
-
+    for match in matches:
         # Friendly error message for likely mistake
-        if len(parts) != 2:
-            sys.exit("Repo name '{}' does not match format owner/repo or owner/*"
-                .format(repo_name))
+        parts = match.split("/")
+        if len(parts) != 2 or parts[0] == "*":
+            for child in multiprocessing.active_children():
+                child.terminate()
+            raise click.ClickException(
+                "'{}' does not match owner/repo or owner/*".format(match))
 
         if parts[1] == "*":
-            for repo in replicategithub.get_organization_repos(config["github_token"], parts[0]):
-                mirror.fetch_repo(repo.full_name)
+            mirror.mirror_org(parts[0])
         else:
-            mirror.fetch_repo(repo_name)
+            mirror.mirror_repo(match)
+
+    mirror.stop()
 
 @main.command()
 @click.option('--older-than', type=int, default=24*60*60, metavar="SECONDS",
-    help="Cut off age in seconds (default: 86400).")
+    help="Cut off age in seconds (default 86400).")
 @pass_config
 def freshen(config, older_than):
-    """ Update oldest repos in mirror """
+    """ Update oldest repos in mirror. """
 
     logger = logging.getLogger("freshen")
     logger.info("Freshening repos")
 
     mirror = get_async_mirror(config)
-    mirror.fetch_old_repos(older_than)
+    mirror.update_old_repos(older_than)
+    mirror.stop()
+
+@main.command(name="sync-org")
+@click.argument("orgs", metavar="ORG [ORG ...]", required=True, nargs=-1)
+@pass_config
+def sync_org(config, orgs):
+    """
+    Add and delete mirrors to match GitHub.
+
+    This does not update mirrors that haven't been added or deleted. Use the
+    mirror command, or combine this with freshen.
+    """
+
+    logger = logging.getLogger("sync-org")
+    mirror = get_async_mirror(config)
+
+    for org in orgs:
+        logger.info("Syncing {} organization".format(org))
+        mirror.sync_org(org)
+
     mirror.stop()
 
 @main.command()
 @click.option('--listen', '-l', default="localhost", metavar="ADDRESS",
-    help="Address to listen on (default: localhost).")
+    help="Address to listen on (default localhost).")
 @click.option('--port', '-p', type=int, default=8080, metavar="PORT",
-    help="Port to listen on (default: 8080).")
+    help="Port to listen on (default 8080).")
 @click.option('--secret', metavar="STRING",
     help="Secret to authenticate Github")
 @pass_config
 def serve(config, listen, port, secret):
-    """ Serve webhook endpoint for GitHub """
+    """ Serve webhook endpoint for GitHub. """
 
     logger = logging.getLogger("serve")
     logger.info("Serving HTTP on {}:{}".format(listen, port))

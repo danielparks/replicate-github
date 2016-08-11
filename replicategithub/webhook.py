@@ -48,7 +48,7 @@ class WebhookHandler(http.server.BaseHTTPRequestHandler):
         if payload["deleted"]:
             self.server.mirror.delete_repo(full_name)
         else:
-            self.server.mirror.fetch_repo(full_name)
+            self.server.mirror.mirror_repo(full_name)
 
         self.send(202, "Accepted")
 

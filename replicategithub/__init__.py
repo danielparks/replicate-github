@@ -11,12 +11,6 @@ import time
 
 from replicategithub import webhook
 
-def get_organization_repos(token, organization_name):
-    """ Get repos in a given organization from GitHub """
-    return github.Github(token)\
-        .get_organization(organization_name)\
-        .get_repos()
-
 try:
     from click import ClickException
     class MirrorException(ClickException):
@@ -48,19 +42,42 @@ class Mirror:
         self.logger.debug("{} finished in {:.3f} seconds"
             .format(message, time.time() - start))
 
-    def validate_repo_name(self, full_name):
+    def validate_name(self, partial_name):
         """
-        Fail if the passed full repo name is invalid
+        Fail if the passed partial name is invalid
 
         This is my best guess at what GitHub supports.
 
         This is important for security, a repo name with a "../" or starting with
         "/" could result in access outside of the mirror directory.
         """
-        legal_name = r"[A-Za-z0-9][A-Za-z0-9_.-]*"
-        name_re = re.compile("^{0}/{0}$".format(legal_name))
-        if not name_re.match(full_name):
+        if not re.match(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$", partial_name):
+            raise Exception("Illegal name: '{}'".format(partial_name))
+
+    def validate_repo_name(self, full_name):
+        """
+        Fail if the passed full repo name (ORG/REPO) is invalid
+
+        See validate_name()
+        """
+        try:
+            for part in full_name.split("/", 2):
+                self.validate_name(part)
+        except:
             raise Exception("Illegal repo name: '{}'".format(full_name))
+
+    def validate_match(self, match):
+        """
+        Fail if the passed repo match (ORG/REPO, ORG/*, */*, etc.) is invalid
+
+        See validate_name()
+        """
+        try:
+            for part in match.split("/", 2):
+                if part != "*":
+                    self.validate_name(part)
+        except:
+            raise Exception("Illegal repo match: '{}'".format(match))
 
     def get_repo_path(self, full_name):
         self.validate_repo_name(full_name)
@@ -70,20 +87,43 @@ class Mirror:
         return "https://{}:{}@github.com/{}.git".format(
             self.username, self.token, full_name)
 
+    def get_mirror_names(self, match="*/*"):
+        self.validate_match(match)
+        for path in iglob("{}/{}.git".format(self.path, match)):
+            # Strip the path prefix and the ".git"
+            yield path[len(self.path) + 1  : -4]
+
+    def get_mirror_names_set(self, match="*/*"):
+        with self.timed_action("Getting {} mirrors".format(match)):
+            return set(self.get_mirror_names(match))
+
+    def get_org_repos(self, org):
+        """ Get repos in a given organization from GitHub """
+        repos = github.Github(self.token) \
+            .get_organization(org) \
+            .get_repos()
+        for repo in repos:
+            yield repo.full_name
+
+    def get_org_repos_set(self, org):
+        """ Get repos in a given organization from GitHub as a set """
+        with self.timed_action("Getting GitHub {} repos".format(org)):
+            return set(self.get_org_repos(org))
+
     def initialize_repo(self, full_name):
         path = self.get_repo_path(full_name)
         if os.path.exists(path):
             raise MirrorException("Cannot init repo; path exists: {}".format(path))
 
         with self.timed_action("Initializing {}".format(full_name)):
-            organization_path = os.path.dirname(path)
-            if not os.path.exists(organization_path):
-                os.mkdir(organization_path, 0o755)
+            org_path = os.path.dirname(path)
+            if not os.path.exists(org_path):
+                os.mkdir(org_path, 0o755)
 
             git.Repo.init(path, bare=True).git.remote(
                 "add", "--mirror", "origin", self.get_clone_url(full_name))
 
-    def fetch_repo(self, full_name):
+    def mirror_repo(self, full_name):
         path = self.get_repo_path(full_name)
         if not os.path.exists(path):
             self.initialize_repo(full_name)
@@ -103,34 +143,59 @@ class Mirror:
             os.rename(path, target)
             shutil.rmtree(target)
 
-    def get_repo_times(self, before=None):
+    def get_mirror_times(self, before=None):
         if before is None:
             before = time.time() + 1000000
 
-        for head_path in iglob("{}/*/*.git/FETCH_HEAD".format(self.path)):
-            mtime = os.path.getmtime(head_path)
+        for repo_name in self.get_mirror_names():
+            mtime = os.path.getmtime(
+                "{}/{}.git/FETCH_HEAD".format(self.path, repo_name))
             if mtime < before:
-                repo_name_git = "/".join(head_path.split("/")[-3:-1])
-                repo_name = repo_name_git[:-4]
                 yield (mtime, repo_name)
 
     def get_oldest_repo_names(self, before=None):
-        for mtime, repo_name in sorted(self.get_repo_times(before)):
+        for mtime, repo_name in sorted(self.get_mirror_times(before)):
             yield repo_name
+
+def worker_handle_task(mirror, queue, action, values):
+    if action == "mirror":
+        mirror.mirror_repo(values[0])
+    elif action == "delete":
+        mirror.delete_repo(values[0])
+    elif action == "mirror_org":
+        org = values[0]
+        repos = mirror.get_org_repos_set(org)
+        mirrors = mirror.get_mirror_names_set("{}/*".format(org))
+
+        for repo_name in repos:
+            queue.put(("mirror", repo_name))
+        for repo_name in mirrors - repos:
+            queue.put(("delete", repo_name))
+    elif action == "sync_org":
+        org = values[0]
+        repos = mirror.get_org_repos_set(org)
+        mirrors = mirror.get_mirror_names_set("{}/*".format(org))
+
+        for repo_name in repos - mirrors:
+            print("sync mirror {}".format(repo_name))
+            queue.put(("mirror", repo_name))
+        for repo_name in mirrors - repos:
+            print("sync delete {}".format(repo_name))
+            queue.put(("delete", repo_name))
+    elif action == "stop":
+        raise StopIteration()
+    else:
+        raise Exception("Unknown action: {}".format(action))
 
 def worker(mirror, queue):
     """ Worker for AsyncMirror """
     try:
         while True:
             task = queue.get()
-            if task[0] == "fetch":
-                mirror.fetch_repo(task[1])
-            elif task[0] == "delete":
-                mirror.delete_repo(task[1])
-            elif task[0] == "stop":
-                return
-            else:
-                raise Exception("Unknown action: {}".format(action))
+            try:
+                worker_handle_task(mirror, queue, task[0], task[1:])
+            finally:
+                queue.task_done()
     except KeyboardInterrupt:
         return
 
@@ -138,7 +203,7 @@ class AsyncMirror:
     """ A wrapper around Mirror that performs operations asynchronously """
     def __init__(self, mirror, worker_count=2):
         self.mirror = mirror
-        self.queue = multiprocessing.Queue()
+        self.queue = multiprocessing.JoinableQueue()
 
         self.logger = logging.getLogger("AsyncMirror")
         self.logger.info("Starting with {} workers".format(worker_count))
@@ -148,22 +213,31 @@ class AsyncMirror:
                 target=worker,
                 args=(self.mirror,self.queue)).start()
 
-    def fetch_repo(self, repo_name):
-        self.logger.debug("Adding job: fetch {}".format(repo_name))
-        self.queue.put(("fetch", repo_name))
+    def mirror_repo(self, repo_name):
+        self.logger.debug("Adding job: mirror {}".format(repo_name))
+        self.queue.put(("mirror", repo_name))
 
     def delete_repo(self, repo_name):
         self.logger.debug("Adding job: delete {}".format(repo_name))
         self.queue.put(("delete", repo_name))
 
-    def fetch_old_repos(self, older_than=24*60*60):
+    def mirror_org(self, org):
+        self.logger.debug("Adding job: mirror org {}".format(org))
+        self.queue.put(("mirror_org", org))
+
+    def sync_org(self, org):
+        self.logger.debug("Adding sync job: {}".format(org))
+        self.queue.put(("sync_org", org))
+
+    def update_old_repos(self, older_than=24*60*60):
         before = time.time() - older_than
         for repo_name in self.mirror.get_oldest_repo_names(before):
-            self.logger.debug("Adding freshen job: fetch {}".format(repo_name))
-            self.queue.put(("fetch", repo_name))
+            self.logger.debug("Adding freshen job: update {}".format(repo_name))
+            self.queue.put(("mirror", repo_name))
 
     def stop(self):
         self.logger.debug("Stopping all workers")
-        for _ in multiprocessing.active_children():
-            self.queue.put(("stop",))
+        self.queue.join()
+        for child in multiprocessing.active_children():
+            child.terminate()
         self.queue.close()

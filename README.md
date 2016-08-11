@@ -2,7 +2,7 @@
 
 A tool to manage mirrors of GitHub repos.
 
-  $ replicate-github --verbose fetch puppetlabs/puppet 'github/*'
+  $ replicate-github --verbose mirror puppetlabs/puppet 'github/*'
   Mirror: Initializing puppetlabs/puppet
   Mirror: Fetching puppetlabs/puppet
   Mirror: Initializing github/version_sorter
