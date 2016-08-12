@@ -101,7 +101,7 @@ class WebhookServer(http.server.HTTPServer):
         self.update_older_than = update_older_than
         self._schedule_periodic()
 
-        self.logger.info("Configuration: run periodic tasks ever {} seconds"
+        self.logger.info("Configuration: run periodic tasks every {} seconds"
             .format(self.periodic_interval))
         self.logger.info("Configuration: keep orgs {} in sync"
             .format(self.update_orgs))
