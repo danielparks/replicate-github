@@ -4,16 +4,16 @@ replicate-github sets up and maintains mirrors of GitHub organizations and
 individual repos. It can serve webhook endpoints and keep the mirrors updated
 continuously, or it can be run ad hoc from the command line.
 
-  $ replicate-github --verbose mirror puppetlabs/puppet 'github/*'
-  mirror.Collection: Fetching puppetlabs/puppet
-  mirror.Collection: Fetching github/garethr-docker
-  mirror.Collection: Fetching github/github-ldap
-  ^C
-  $ replicate-github --verbose serve --update-org github
-  WebhookServer: Webhook server listening on localhost:8080
-  127.0.0.1 - - [10/Aug/2016 01:18:35] "POST / HTTP/1.1" 202 -
-  mirror.Collection: Fetching puppetlabs/puppet
-  ^C
+    $ replicate-github --verbose mirror puppetlabs/puppet 'github/*'
+    mirror.Collection: Fetching puppetlabs/puppet
+    mirror.Collection: Fetching github/garethr-docker
+    mirror.Collection: Fetching github/github-ldap
+    ^C
+    $ replicate-github --verbose serve --update-org github
+    WebhookServer: Webhook server listening on localhost:8080
+    127.0.0.1 - - [10/Aug/2016 01:18:35] "POST / HTTP/1.1" 202 -
+    mirror.Collection: Fetching puppetlabs/puppet
+    ^C
 
 ## Webhook
 
