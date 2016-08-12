@@ -48,16 +48,22 @@ class WebhookHandler(http.server.BaseHTTPRequestHandler):
 
         if event == "ping":
             self.send(200, "pong")
-            return
-
-        full_name = payload["repository"]["full_name"]
-
-        if payload["deleted"]:
-            self.server.manager.delete_mirror(full_name)
+        elif event == "repository":
+            if payload["action"] == "deleted":
+                self.server.manager.delete_mirror(
+                    payload["repository"]["full_name"])
+            else:
+                # There will be a push event too.
+                pass
+            self.send(202, "Accepted")
+        elif event == "push":
+            self.server.manager.mirror_repo(
+                payload["repository"]["full_name"])
+            self.send(202, "Accepted")
         else:
-            self.server.manager.mirror_repo(full_name)
-
-        self.send(202, "Accepted")
+            self.server.logger.error(
+                "501 Event not implemented: {}".format(event))
+            self.send(501, "Event not implemented")
 
     def authenticate(self, data):
         if self.server.secret is None:
