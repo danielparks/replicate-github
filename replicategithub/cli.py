@@ -169,8 +169,11 @@ def sync_org(config, orgs):
         " (default 24*60*60). 0 means to only update on events.")
 @click.option('--periodic-interval', type=int, default=15*60, metavar="SECONDS",
     help="How frequently to run periodic tasks (default 15*60).")
+@click.option('--payload-log', type=click.File('at'), metavar="FILE",
+    help="Log file for webhook payloads for debugging.")
 @pass_config
-def serve(config, port, address, secret, update_org, update_older_than, periodic_interval):
+def serve(config, port, address, secret, update_org, update_older_than,
+        periodic_interval, payload_log):
     """
     Serve webhook endpoint for GitHub events.
 
@@ -203,4 +206,5 @@ def serve(config, port, address, secret, update_org, update_older_than, periodic
         listen=(address, port),
         periodic_interval=periodic_interval,
         update_orgs=update_org,
-        update_older_than=update_older_than)
+        update_older_than=update_older_than,
+        payload_log=payload_log)

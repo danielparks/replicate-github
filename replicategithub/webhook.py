@@ -40,6 +40,12 @@ class WebhookHandler(http.server.BaseHTTPRequestHandler):
             raise
 
     def do_webhook(self, event, payload):
+        if self.server.payload_log:
+            self.server.payload_log.write(json.dumps({
+                "event": event,
+                "payload": payload
+            }))
+
         if event == "ping":
             self.send(200, "pong")
             return
@@ -69,12 +75,13 @@ class WebhookHandler(http.server.BaseHTTPRequestHandler):
         return hmac.compare_digest(correct, signature)
 
 class WebhookServer(http.server.HTTPServer):
-    def __init__(self, address, secret, manager):
+    def __init__(self, address, secret, manager, payload_log):
         self.manager = manager
         self.secret = secret
         self.timer = None
         self.periodic_interval = 0
         self.logger = logging.getLogger("WebhookServer")
+        self.payload_log = payload_log
 
         http.server.HTTPServer.__init__(self, address, WebhookHandler)
         self.logger.info("Webhook server listening on {}:{}"
@@ -111,7 +118,8 @@ class WebhookServer(http.server.HTTPServer):
 
 
 def serve(manager, secret=None, listen=("127.0.0.1", 8080),
-        periodic_interval=15*60, update_orgs=[], update_older_than=0):
+        periodic_interval=15*60, update_orgs=[], update_older_than=0,
+        payload_log=None):
     """
     Start an HTTP server to serve webhooks.
 
@@ -123,8 +131,9 @@ def serve(manager, secret=None, listen=("127.0.0.1", 8080),
     periodic_interval: how frequently to run periodic tasks.
     update_orgs: organizations to keep in sync.
     update_older_than: update mirrors that haven't been updated in this long.
+    payload_log: file to log payloads to.
     """
-    server = WebhookServer(listen, secret, manager)
+    server = WebhookServer(listen, secret, manager, payload_log)
     if update_orgs or update_older_than:
         server.start_periodic(
             periodic_interval, update_orgs, update_older_than)
