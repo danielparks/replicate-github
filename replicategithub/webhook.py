@@ -90,6 +90,7 @@ class WebhookServer(http.server.HTTPServer):
         self.payload_log = payload_log
 
         http.server.HTTPServer.__init__(self, address, WebhookHandler)
+
         self.logger.info("Webhook server listening on {}:{}"
             .format(address[0], address[1]))
 
@@ -99,6 +100,13 @@ class WebhookServer(http.server.HTTPServer):
         self.update_orgs = update_orgs
         self.update_older_than = update_older_than
         self._schedule_periodic()
+
+        self.logger.info("Configuration: run periodic tasks ever {} seconds"
+            .format(self.periodic_interval))
+        self.logger.info("Configuration: keep orgs {} in sync"
+            .format(self.update_orgs))
+        self.logger.info("Configuration: update mirrors older than {} seconds"
+            .format(self.update_older_than))
 
     def stop_periodic(self):
         if self.timer:
