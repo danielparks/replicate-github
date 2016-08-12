@@ -1,8 +1,11 @@
-# replicate-github
+replicate-github
+================
 
 replicate-github sets up and maintains mirrors of GitHub organizations and
 individual repos. It can serve webhook endpoints and keep the mirrors updated
 continuously, or it can be run ad hoc from the command line.
+
+::
 
     $ replicate-github --verbose mirror puppetlabs/puppet 'github/*'
     mirror.Collection: Fetching puppetlabs/puppet
@@ -15,28 +18,31 @@ continuously, or it can be run ad hoc from the command line.
     mirror.Collection: Fetching puppetlabs/puppet
     ^C
 
-## Webhook
+Webhook
+~~~~~~~
 
 The webhook server accepts POST to any URL (the path is ignored). A shared
 secret should be set so that events can't be sent from non-GitHub sources.
 
 By default the webhook server ensures that mirrors are updated at least once a
-day if no events are received. See `replicate-github serve --help` for more
+day if no events are received. See ``replicate-github serve --help`` for more
 information.
 
-### GitHub webhook configuration
+GitHub webhook configuration
+----------------------------
 
 Create the webhook with any URL under the one served by the application. Set
-the secret to a random string, and put it in `replicate-github.yaml` like so:
+the secret to a random string, and put it in ``replicate-github.yaml`` like so:
 
-~~~ yaml
-serve:
-  secret: "secret configured for webhook in GitHub"
-~~~
+.. code:: yaml
+
+    serve:
+      secret: "secret configured for webhook in GitHub"
 
 Select the "Repository" and "Push" events to send.
 
-### Security
+Security
+--------
 
 If a secret is configured then any event not containing the correct secret will
 be rejected.
@@ -49,27 +55,28 @@ This will create or update a mirror for any repo name as long as the secret is
 correct. That means if you configure the webhook for a repo that hasn't already
 been mirrored it will start mirroring the repo as soon as an event comes in.
 
-## Configuration file
+Configuration file
+~~~~~~~~~~~~~~~~~~
 
-Configuration is loaded from the value of `--config-file`, which defaults to
-`/etc/replicate-github.yaml`. The file requires three settings:
+Configuration is loaded from the value of ``--config-file``, which defaults to
+``/etc/replicate-github.yaml``. The file requires three settings:
 
-~~~ yaml
-mirror_path: "/srv/replicate-github"
-github_user: "GitHub username"
-github_token: "GitHub API token"
-~~~
+.. code:: yaml
 
-You can generate a GitHub API token under [Settings > Personal access
-tokens](https://github.com/settings/tokens).
+    mirror_path: "/srv/replicate-github"
+    github_user: "GitHub username"
+    github_token: "GitHub API token"
 
-There is an additional top level option, `workers`, that sets the number of
-`git` subprocesses that can be run at once. It defaults to 1.
+You can generate a GitHub API token under `Settings > Personal access
+tokens <https://github.com/settings/tokens>`_.
 
-Optionally, defaults for subcommands (e.g. `serve`) may be set:
+There is an additional top level option, ``workers``, that sets the number of
+``git`` subprocesses that can be run at once. It defaults to 1.
 
-~~~ yaml
-serve:
-  secret: "secret configured for webhook in GitHub"
-  port: 8000
-~~~
+Optionally, defaults for subcommands (e.g. ``serve``) may be set:
+
+.. code:: yaml
+
+    serve:
+      secret: "secret configured for webhook in GitHub"
+      port: 8000

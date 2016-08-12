@@ -9,7 +9,7 @@ setuptools.setup(
     author_email = "dp-os-replicate-github@oxidized.org",
     url = "http://github.com/danielparks/replicate-github",
     license = "BSD",
-    long_description = open("README.md").read(),
+    long_description = open("README.rst").read(),
 
     classifiers = [
         "Development Status :: 4 - Beta",
