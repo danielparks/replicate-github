@@ -80,3 +80,10 @@ Optionally, defaults for subcommands (e.g. ``serve``) may be set:
     serve:
       secret: "secret configured for webhook in GitHub"
       port: 8000
+      update_org:
+        - github
+        - puppetlabs
+
+Note that parameter names in the configuration file use "_" instead of "-". For
+example, the parameter ``--update-org`` is called ``update_org`` in the
+configuration file.
