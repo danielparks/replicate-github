@@ -24,6 +24,18 @@ By default the webhook server ensures that mirrors are updated at least once a
 day if no events are received. See `replicate-github serve --help` for more
 information.
 
+### GitHub webhook configuration
+
+Create the webhook with any URL under the one served by the application. Set
+the secret to a random string, and put it in `replicate-github.yaml` like so:
+
+~~~ yaml
+serve:
+  secret: "secret configured for webhook in GitHub"
+~~~
+
+Select the "Repository" and "Push" events to send.
+
 ### Security
 
 If a secret is configured then any event not containing the correct secret will
