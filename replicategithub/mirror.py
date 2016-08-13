@@ -14,9 +14,11 @@ class MirrorException(Exception):
 
 class Worker(multiprocessing.Process):
     def __init__(self, collection, queue):
+        multiprocessing.Process.__init__(self)
+
         self.collection = collection
         self.queue = queue
-        multiprocessing.Process.__init__(self)
+        self.logger = logging.getLogger("mirror.Worker[]".format(self.name))
 
     def run(self):
         try:
@@ -24,6 +26,8 @@ class Worker(multiprocessing.Process):
                 task = self.queue.get()
                 try:
                     self.run_task(task[0], task[1:])
+                except git.exc.GitCommandError as e:
+                    self.logger.error("Git Error: {}".format(e))
                 finally:
                     self.queue.task_done()
         except KeyboardInterrupt:
