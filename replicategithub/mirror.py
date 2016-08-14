@@ -12,55 +12,6 @@ import time
 class MirrorException(Exception):
     pass
 
-class Worker(multiprocessing.Process):
-    def __init__(self, collection, queue):
-        multiprocessing.Process.__init__(self)
-
-        self.collection = collection
-        self.queue = queue
-        self.logger = logging.getLogger("mirror.Worker[]".format(self.name))
-
-    def run(self):
-        try:
-            while True:
-                task = self.queue.get()
-                try:
-                    self.run_task(task[0], task[1:])
-                except git.exc.GitCommandError as e:
-                    self.logger.error("Git Error: {}".format(e))
-                finally:
-                    self.queue.task_done()
-        except KeyboardInterrupt:
-            return
-
-    def run_task(self, action, arguments):
-        if action == "mirror":
-            self.collection.mirror_repo(arguments[0])
-        elif action == "delete":
-            self.collection.delete_mirror(arguments[0])
-        elif action == "mirror_org":
-            org = arguments[0]
-            repos = self.collection.get_org_repos_set(org)
-            mirrors = self.collection.get_mirror_names_set("{}/*".format(org))
-
-            for repo_name in repos:
-                self.queue.put(("mirror", repo_name))
-            for repo_name in mirrors - repos:
-                self.queue.put(("delete", repo_name))
-        elif action == "sync_org":
-            org = arguments[0]
-            repos = self.collection.get_org_repos_set(org)
-            mirrors = self.collection.get_mirror_names_set("{}/*".format(org))
-
-            for repo_name in repos - mirrors:
-                print("sync mirror {}".format(repo_name))
-                self.queue.put(("mirror", repo_name))
-            for repo_name in mirrors - repos:
-                print("sync delete {}".format(repo_name))
-                self.queue.put(("delete", repo_name))
-        else:
-            raise Exception("Unknown action: {}".format(action))
-
 class Collection:
     """
     A collection of GitHub mirrors
@@ -201,3 +152,13 @@ class Collection:
     def get_oldest_mirrors(self, before=None):
         for mtime, repo_name in sorted(self.get_mirror_times(before)):
             yield repo_name
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['logger']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        process_name = multiprocessing.current_process().name
+        self.logger = logging.getLogger("worker[{}]".format(process_name))
