@@ -161,4 +161,4 @@ class Collection:
     def __setstate__(self, state):
         self.__dict__.update(state)
         process_name = multiprocessing.current_process().name
-        self.logger = logging.getLogger("worker[{}]".format(process_name))
+        self.logger = logging.getLogger("mirror.Collection")

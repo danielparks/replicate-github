@@ -14,9 +14,9 @@ def set_up_logging(level=logging.WARNING, library_level=logging.WARNING):
     try:
         import colorlog
         handler.setFormatter(colorlog.ColoredFormatter(
-            '%(log_color)s%(name)s: %(message)s'))
+            '%(log_color)s%(name)s[%(processName)s]: %(message)s'))
     except ImportError:
-        handler.setFormatter(logging.Formatter('%(name)s: %(message)s'))
+        handler.setFormatter(logging.Formatter('%(name)s[%(processName)s]: %(message)s'))
 
     root = logging.getLogger()
     root.setLevel(level)
