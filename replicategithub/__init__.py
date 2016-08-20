@@ -16,12 +16,11 @@ class MirrorManager:
         self.busy_lock = multiprocessing.Lock()
 
     def _callable_to_str(self, callable):
-        try:
-            object = callable.__self__
-        except AttributeError:
-            object_string = ""
+        if hasattr(callable, "__self__"):
+            # A bound method; return the class name as a prefix.
+            object_string = callable.__self__.__class__.__name__ + "."
         else:
-            object_string = object.__class__.__name__ + "."
+            object_string = ""
 
         return object_string + callable.__name__
 
