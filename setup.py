@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name = "replicate-github",
-    version = "0.5.1",
+    version = "0.6.0",
 
     description = "Tool for maintaining mirrors of GitHub repos",
     author = "Daniel Parks",
