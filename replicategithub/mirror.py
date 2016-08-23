@@ -116,16 +116,17 @@ class Collection:
         if not os.path.exists(org_path):
             os.mkdir(org_path, 0o755)
 
-        git.Repo.init(path, bare=True).git.remote(
-            "add", "--mirror", "origin", self.get_clone_url(full_name))
+        with self.timed_action("Cloning {}".format(full_name)):
+            url = self.get_clone_url(full_name)
+            git.Repo.clone_from(url, path, mirror=True)
 
     def mirror_repo(self, full_name):
         path = self.get_mirror_path(full_name)
-        if not os.path.exists(path):
+        if os.path.exists(path):
+            with self.timed_action("Fetching {}".format(full_name)):
+                git.Repo.init(path, bare=True).git.fetch("origin")
+        else:
             self.initialize_mirror(full_name)
-
-        with self.timed_action("Fetching {}".format(full_name)):
-            git.Repo.init(path, bare=True).git.fetch("origin")
 
     def delete_mirror(self, full_name):
         path = self.get_mirror_path(full_name)
