@@ -24,6 +24,12 @@ class MirrorManager:
 
         return object_string + callable.__name__
 
+    def _handle_task_error(self, error):
+        if isinstance(error, mirror.HandledException):
+            self.logger.debug("Got HandledException from child")
+        else:
+            self.logger.error(error)
+
     def _run(self, callable, arguments, callback=None, error_callback=None):
         """
         Run a callable in another worker
@@ -37,6 +43,9 @@ class MirrorManager:
         are complete.
         """
         callable_string = self._callable_to_str(callable)
+
+        if error_callback is None:
+            error_callback = self._handle_task_error
 
         def wrap_callback(_callback):
             def _wrapped(value):

@@ -2,6 +2,7 @@ from contextlib import contextmanager
 import git
 import github
 from glob import iglob
+from functools import wraps
 import logging
 import multiprocessing
 import os
@@ -10,6 +11,15 @@ import shutil
 import time
 
 class MirrorException(Exception):
+    pass
+
+class HandledException(Exception):
+    """
+    Notify the parent process the task failed and the error was logged
+
+    We log exceptions from the worker in the worker for clarity. However, we
+    still need to alert the MirrorManager that an exception occurred.
+    """
     pass
 
 class Collection:
@@ -26,6 +36,27 @@ class Collection:
         self.logger = logging.getLogger("mirror.Collection")
         if not os.path.isdir(path):
             raise MirrorException("Mirror directory '{}' not found".format(path))
+
+    def task(func):
+        """ Handle exceptions in a method invoked from MirrorManager """
+        @wraps(func)
+        def wrapped(self, *args, **kwargs):
+            try:
+                return func(self, *args, **kwargs)
+            except KeyboardInterrupt as e:
+                raise HandledException(e)
+            except MirrorException as e:
+                self.logger.error(e)
+                raise HandledException(e)
+            except git.exc.GitCommandError as e:
+                self.logger.error(
+                    "{}{}: ".format(func.__name__, args)
+                    + e.stderr.decode('utf-8').replace(self.token, "<TOKEN>"))
+                raise HandledException(e)
+            except Exception as e:
+                self.logger.exception(e)
+                raise HandledException(e)
+        return wrapped
 
     @contextmanager
     def timed_action(self, message, level=logging.INFO):
@@ -99,6 +130,7 @@ class Collection:
         for repo in repos:
             yield repo.full_name
 
+    @task
     def get_org_repos_set(self, org):
         """ Get repos in a given organization from GitHub as a set """
         with self.timed_action("Getting {}/* repos from GitHub".format(org),
@@ -120,6 +152,7 @@ class Collection:
             url = self.get_clone_url(full_name)
             git.Repo.clone_from(url, path, mirror=True)
 
+    @task
     def mirror_repo(self, full_name):
         path = self.get_mirror_path(full_name)
         if os.path.exists(path):
@@ -128,6 +161,7 @@ class Collection:
         else:
             self.initialize_mirror(full_name)
 
+    @task
     def delete_mirror(self, full_name):
         path = self.get_mirror_path(full_name)
         if not os.path.exists(path):
