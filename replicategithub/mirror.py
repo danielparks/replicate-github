@@ -157,7 +157,7 @@ class Collection:
         path = self.get_mirror_path(full_name)
         if os.path.exists(path):
             with self.timed_action("Fetching {}".format(full_name)):
-                git.Repo.init(path, bare=True).git.fetch("origin")
+                git.Repo.init(path, bare=True).remotes.origin.update(prune=True)
         else:
             self.initialize_mirror(full_name)
 
