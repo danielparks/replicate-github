@@ -2,17 +2,17 @@ import setuptools
 
 setuptools.setup(
     name = "replicate-github",
-    version = "0.6.2",
+    version = "1.0.0",
 
     description = "Tool for maintaining mirrors of GitHub repos",
     author = "Daniel Parks",
-    author_email = "dp-os-replicate-github@oxidized.org",
+    author_email = "os-replicate-github@demonhorse.org",
     url = "http://github.com/danielparks/replicate-github",
     license = "BSD",
     long_description = open("README.rst").read(),
 
     classifiers = [
-        "Development Status :: 4 - Beta",
+        "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
         "Intended Audience :: System Administrators",
         "License :: OSI Approved :: BSD License",
@@ -22,7 +22,7 @@ setuptools.setup(
         "Topic :: System :: Archiving :: Mirroring",
     ],
 
-    packages = [ "replicategithub" ],
+    packages = setuptools.find_packages(),
     install_requires = [
         "click",
         "gitpython",
